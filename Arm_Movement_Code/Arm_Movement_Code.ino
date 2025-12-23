@@ -23,7 +23,7 @@ int gripperAngle = 90;
 
 // Setup runs once at startup
 void setup() {
-  Serial.begin(9600);      // Serial communication with Raspberry Pi
+  Serial.begin(115200);      // Serial communication with Raspberry Pi
 
   // Attach each servo object to its control pin
   base.attach(basePin); 
