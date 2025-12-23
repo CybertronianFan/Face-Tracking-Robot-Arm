@@ -1,66 +1,44 @@
-#include "ESP32Servo.h"  // Include the ESP32Servo library to control hobby servos
+#include "ESP32Servo.h" // Include the library to control hobby servos
 
-// Create servo objects for each joint of the robotic arm
-Servo base;      // Base rotation servo
-Servo arm;       // Upper arm servo
-Servo forearm;   // Forearm servo
-Servo gripper;   // Claw/gripper servo
+// ------------------------------
+// SERVO SETUP
+// ------------------------------
+Servo base;              // Create a servo object for the base
+#define basePin 4         // GPIO pin connected to the base servo
 
-// Define the GPIO pins that each servo is connected to
-#define basePin 4
-#define armPin 2
-#define forearmPin 17
-#define gripperPin 16
+int baseAngle = 90;      // Initial angle for the base (centered)
+#define BASE_STEP 2       // Degrees to move per command (adjust for speed)
 
-// Initialize servo angles (starting positions)
-int baseAngle = 90;        // Base starts centred
-int armAngle = 90;
-int forearmAngle = 90;
-int gripperAngle = 90;
-
-// How much the base moves per command
-#define BASE_STEP 2        // Degrees per movement (adjust for speed)
-
-// Setup runs once at startup
 void setup() {
-  Serial.begin(115200);      // Serial communication with Raspberry Pi
+  Serial.begin(115200);   // Initialize serial communication (must match Python)
 
-  // Attach each servo object to its control pin
-  base.attach(basePin); 
-  arm.attach(armPin);
-  forearm.attach(forearmPin);
-  gripper.attach(gripperPin);
+  // Attach the servo object to its GPIO pin
+  base.attach(basePin);
 
-  // Move servos to their starting positions
+  // Move servo to starting position
   base.write(baseAngle);
-  arm.write(armAngle);
-  forearm.write(forearmAngle);
-  gripper.write(gripperAngle);
 }
 
-// Main loop runs repeatedly
 void loop() {
-  baseControl();           // Control the base rotation
-}
-
-// Function to control the base servo (rotation)
-void baseControl() {
-
-  // Check if data is available from the Raspberry Pi
+  // Check if there is incoming data from the Raspberry Pi
   if (Serial.available() > 0) {
-    char command = Serial.read();   // Read incoming byte
+    char cmd = Serial.read(); // Read the incoming byte
 
-    if (command == 'r') {           // Rotate clockwise
-      baseAngle += BASE_STEP;
-    }
-    else if (command == 'l') {      // Rotate anticlockwise
-      baseAngle -= BASE_STEP;
+    // Move the base depending on the command received
+    if (cmd == 'r') {
+      baseAngle += BASE_STEP;  // Rotate base clockwise
+    } 
+    else if (cmd == 'l') {
+      baseAngle -= BASE_STEP;  // Rotate base counterclockwise
     }
 
-    // Constrain angle to valid servo range
+    // Constrain the angle to valid servo range
     baseAngle = constrain(baseAngle, 0, 180);
 
-    // Move the servo
+    // Write the new angle to the servo
     base.write(baseAngle);
   }
+
+  // Small delay to allow servo to move smoothly
+  delay(10); 
 }

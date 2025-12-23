@@ -1,67 +1,105 @@
-import cv2 # OpenCV for camera and face detection
-import serial # For USB communication with the ESP32
-import time # For small delays
+import cv2          # OpenCV library for camera capture and face detection
+import serial       # For serial communication with ESP32
+import time         # For delays
 
-ESP32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1) # Initializes communication with the Pi USB port at 115200 baud with the ESP32
-time.sleep(2) # Wait for the ESP32 to initialize
+# ------------------------------
+# SERIAL SETUP
+# ------------------------------
+# Initialize serial communication to the ESP32 over USB
+# Ensure the port matches the one your ESP32 appears as
+# Baud rate must match the ESP32 code (115200)
+ESP32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1)
 
+# Wait 2 seconds to allow ESP32 to initialize and avoid missed commands
+time.sleep(2)
+
+# ------------------------------
+# FACE DETECTION SETUP
+# ------------------------------
+# Load Haar cascade classifier for frontal face detection
+# Make sure 'haarcascade_frontalface_default.xml' is in the same folder
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 
-# Open the webcam (index 0)
+# Open the webcam (camera index 0)
 cam = cv2.VideoCapture(0)
 
-# This variable stores the smoothed horizontal face movement.
-smooth_x = 0
-
-# Set resolution 
+# Optional: set camera resolution
 cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
+# Variable for smoothing horizontal face movement
+smooth_x = 0
+
+# Variable to store the last command sent to the ESP32
+# Prevents sending repeated commands every frame
+last_command = None
+
+# ------------------------------
+# MAIN LOOP
+# ------------------------------
 while True:
-    ret, frame = cam.read()  # Capture frame
+    # Capture a frame from the webcam
+    ret, frame = cam.read()
     
+    # If the camera fails to capture a frame, exit the loop
     if not ret:
         print("Cannot read frame")
         break
 
-    # Convert image to grayscale
+    # Convert frame to grayscale for faster and easier face detection
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
-    # Detect faces
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5) 
 
+    # Detect faces in the frame
+    # scaleFactor: image size reduction per step
+    # minNeighbors: how many neighbors each rectangle should have to retain it
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+
+    # Variable to determine which command to send to ESP32
+    command = None
+
+    # Process each detected face
     for (x, y, w, h) in faces:
-        # Draw rectangle
+        # Draw a green rectangle around the detected face
         cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
 
-        # Find center of the face
+        # Calculate the center x-coordinate of the face
         face_center_x = x + w // 2
 
-        # Find center of the frame
+        # Calculate the center x-coordinate of the camera frame
         frame_center_x = frame.shape[1] // 2
 
-        # Calculate horizontal movement
-        offset_x = face_center_x - frame_center_x   # "+" --> right, "-" --> left
+        # Calculate horizontal offset
+        # Positive --> face is to the right
+        # Negative --> face is to the left
+        offset_x = face_center_x - frame_center_x
 
-        # Smooth the movement
+        # Apply smoothing to reduce jittery movements
         smooth_x = 0.8 * smooth_x + 0.2 * offset_x
 
-        # The communication, which tells the Pi to send one byte of communication to the ESP32
-
+        # Determine which direction the base should move
         if smooth_x > 50:
-            ESP32.write(b'r') # Turn the base right
+            command = b'r'  # Turn the base clockwise (right)
         elif smooth_x < -50:
-            ESP32.write(b'l') # Turn the base left
-    
-    if len(faces) == 0:
-        ESP32.write(b's') # Stop moving the servos
-    
-       # Show the camera view
+            command = b'l'  # Turn the base counterclockwise (left)
+
+    # If no face detected or face is near the center, stop servo movement
+    if len(faces) == 0 or command is None:
+        command = b's'  # Stop servo
+
+    # Only send a command if it has changed since last frame
+    # This prevents flooding the ESP32 with repeated commands
+    if command != last_command:
+        ESP32.write(command)
+        last_command = command
+
+    # Display the camera frame with rectangles drawn
     cv2.imshow("Camera View", frame)
 
-    # Quit with 'q'
+    # Exit the loop if 'q' key is pressed
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-cam.release()
-cv2.destroyAllWindows()
+
+cam.release()           # Release the camera
+cv2.destroyAllWindows() # Close OpenCV windows
+ESP32.close()           # Close serial communication
