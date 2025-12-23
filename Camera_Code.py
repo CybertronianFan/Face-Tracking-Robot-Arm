@@ -2,7 +2,7 @@ import cv2 # OpenCV for camera and face detection
 import serial # For USB communication with the ESP32
 import time # For small delays
 
-ESP32 = serial.Serial(' /dev/tty/USB0', 115200) # Initializes communication with the Pi USB port at 115200   baud with the ESP32
+ESP32 = serial.Serial('/dev/ttyUSB0', 115200, timeout=1) # Initializes communication with the Pi USB port at 115200 baud with the ESP32
 time.sleep(2) # Wait for the ESP32 to initialize
 
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
